@@ -1,16 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2 } from "lucide-react"
-import type { VoteResult } from "@/lib/types"
+import type { VoteResult, DeckType } from "@/lib/types"
 import { checkConsensus } from "@/lib/types"
 
 interface ResultsTableProps {
   results: VoteResult[]
   showAverage?: boolean
   showMedian?: boolean
+  deckType?: DeckType
 }
 
-export function ResultsTable({ results, showAverage = true, showMedian = false }: ResultsTableProps) {
+export function ResultsTable({ results, showAverage = true, showMedian = false, deckType }: ResultsTableProps) {
   if (results.length === 0) {
     return null
   }
@@ -66,21 +67,27 @@ export function ResultsTable({ results, showAverage = true, showMedian = false }
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {(showAverage || showMedian) && numericVotes.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {showAverage && (
-              <div className="flex items-center justify-between p-4 rounded-lg bg-primary/10 border border-primary/20">
-                <span className="font-medium text-sm">Average</span>
-                <span className="text-2xl font-bold text-primary">{average.toFixed(1)}</span>
-              </div>
-            )}
-            {showMedian && (
-              <div className="flex items-center justify-between p-4 rounded-lg bg-primary/10 border border-primary/20">
-                <span className="font-medium text-sm">Median</span>
-                <span className="text-2xl font-bold text-primary">{median.toFixed(1)}</span>
-              </div>
-            )}
-          </div>
+        {(showAverage || showMedian) && (
+          deckType === "tshirt" ? (
+            <p className="text-sm text-muted-foreground italic">
+              Statistics are not available for non-numeric decks
+            </p>
+          ) : numericVotes.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {showAverage && (
+                <div className="flex items-center justify-between p-4 rounded-lg bg-primary/10 border border-primary/20">
+                  <span className="font-medium text-sm">Average</span>
+                  <span className="text-2xl font-bold text-primary">{average.toFixed(1)}</span>
+                </div>
+              )}
+              {showMedian && (
+                <div className="flex items-center justify-between p-4 rounded-lg bg-primary/10 border border-primary/20">
+                  <span className="font-medium text-sm">Median</span>
+                  <span className="text-2xl font-bold text-primary">{median.toFixed(1)}</span>
+                </div>
+              )}
+            </div>
+          ) : null
         )}
 
         {Object.keys(confidenceCounts).length > 0 && (

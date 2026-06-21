@@ -24,6 +24,12 @@ export function updateRecentRoom(roomId: string, updates: Partial<Room>) {
   localStorage.setItem(RECENT_ROOMS_KEY, JSON.stringify(updated))
 }
 
+export function getRecentRoomsFiltered(): Room[] {
+  const rooms = getRecentRooms()
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
+  return rooms.filter((r) => new Date(r.createdAt).getTime() > oneDayAgo)
+}
+
 export function getUserName(): string | null {
   if (typeof window === "undefined") return null
   return localStorage.getItem(USER_NAME_KEY)

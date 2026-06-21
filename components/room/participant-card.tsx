@@ -1,3 +1,6 @@
+"use client"
+
+import { useRef, useEffect, useState } from "react"
 import { User, Eye, CheckCircle2 } from "lucide-react"
 import type { Participant } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -9,6 +12,17 @@ interface ParticipantCardProps {
 
 export function ParticipantCard({ participant, showVote }: ParticipantCardProps) {
   const hasVoted = participant.vote !== undefined
+  const prevHasVotedRef = useRef(hasVoted)
+  const [highlight, setHighlight] = useState(false)
+
+  useEffect(() => {
+    if (!prevHasVotedRef.current && hasVoted) {
+      setHighlight(true)
+      const timer = setTimeout(() => setHighlight(false), 1000)
+      return () => clearTimeout(timer)
+    }
+    prevHasVotedRef.current = hasVoted
+  }, [hasVoted])
 
   const confidenceColors = {
     low: "bg-red-500",
@@ -17,7 +31,12 @@ export function ParticipantCard({ participant, showVote }: ParticipantCardProps)
   }
 
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
+    <div
+      className={cn(
+        "flex items-center justify-between p-3 rounded-lg border border-border bg-card transition-all duration-300",
+        highlight && "ring-2 ring-primary/50 bg-primary/5",
+      )}
+    >
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
           {participant.isSpectator ? <Eye className="h-4 w-4" /> : <User className="h-4 w-4" />}
@@ -43,7 +62,12 @@ export function ParticipantCard({ participant, showVote }: ParticipantCardProps)
                 </div>
               </div>
             ) : hasVoted ? (
-              <CheckCircle2 className="h-5 w-5 text-primary" />
+              <CheckCircle2
+                className={cn(
+                  "h-5 w-5 text-primary transition-transform duration-300",
+                  highlight && "scale-125",
+                )}
+              />
             ) : (
               <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30" />
             )}

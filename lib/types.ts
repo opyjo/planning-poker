@@ -29,9 +29,7 @@ export interface VoteResult {
 export interface RoomSettings {
   allowOthersToShowEstimates: boolean
   allowOthersToDeleteEstimates: boolean
-  allowOthersToClearUsers: boolean
   showTimer: boolean
-  showUserPresence: boolean
   showAverage: boolean
   showMedian: boolean
   autoReveal: boolean
@@ -40,9 +38,7 @@ export interface RoomSettings {
 export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   allowOthersToShowEstimates: true,
   allowOthersToDeleteEstimates: true,
-  allowOthersToClearUsers: true,
   showTimer: false,
-  showUserPresence: false,
   showAverage: false,
   showMedian: false,
   autoReveal: false,

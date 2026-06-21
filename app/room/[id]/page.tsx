@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, RotateCcw, Eye, Settings } from "lucide-react";
+import { ArrowLeft, RotateCcw, Eye, Settings, WifiOff, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,6 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Header } from "@/components/header";
 import { VotingCard } from "@/components/room/voting-card";
 import { ParticipantCard } from "@/components/room/participant-card";
@@ -40,7 +42,7 @@ export default function RoomPage() {
   const params = useParams();
   const router = useRouter();
   const { userName, setUserName } = useUser();
-  const { roomState, sendEvent, joinRoom, leaveRoom } = useSocket();
+  const { roomState, sendEvent, joinRoom, leaveRoom, connectionStatus } = useSocket();
   const { toast } = useToast();
   const roomId = params.id as string;
 
@@ -57,6 +59,7 @@ export default function RoomPage() {
   const [isRevealing, setIsRevealing] = useState(false);
   const [isStartingNewRound, setIsStartingNewRound] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Refs for stable access in cleanup effects
   const currentUserRef = useRef<Participant | null>(null);
@@ -373,6 +376,28 @@ export default function RoomPage() {
     }
   };
 
+  const handleCopyRoomId = async () => {
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(roomId);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = roomId;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+      setCopied(true);
+      toast({ title: "Copied!", description: "Room ID copied to clipboard" });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: "Failed to copy", variant: "destructive" });
+    }
+  };
+
   const results: VoteResult[] = participants
     .filter((p) => !p.isSpectator && p.vote)
     .map((p) => ({
@@ -508,6 +533,14 @@ export default function RoomPage() {
         className="flex-1 py-8"
       >
         <div className="container mx-auto max-w-7xl px-4">
+          {connectionStatus === "disconnected" && (
+            <Alert variant="destructive" className="mb-4">
+              <WifiOff className="h-4 w-4" />
+              <AlertDescription>
+                Connection lost. Attempting to reconnect...
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="mb-6">
             <Button
               variant="ghost"
@@ -527,10 +560,21 @@ export default function RoomPage() {
                   {isMounted ? roomName : "Loading..."}
                 </h1>
                 <p
-                  className="text-muted-foreground"
+                  className="text-muted-foreground flex items-center gap-1"
                   aria-label={`Room ID: ${roomId}`}
                 >
                   Room ID: {roomId}
+                  <button
+                    onClick={handleCopyRoomId}
+                    className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-accent transition-colors"
+                    aria-label="Copy room ID"
+                  >
+                    {copied ? (
+                      <Check className="h-3 w-3 text-green-600" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </button>
                 </p>
               </div>
               <div
@@ -593,7 +637,59 @@ export default function RoomPage() {
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-6">
+          {!roomState && (
+            <div className="grid lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-4 w-48 mt-1" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-10 w-full" />
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <Skeleton className="h-5 w-28" />
+                    <Skeleton className="h-4 w-56 mt-1" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-3 justify-center">
+                      {Array.from({ length: 8 }).map((_, i) => (
+                        <Skeleton key={i} className="h-24 w-16 rounded-lg" />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <Skeleton className="h-5 w-36" />
+                    <Skeleton className="h-4 w-24 mt-1" />
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                    ))}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <Skeleton className="h-5 w-28" />
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {roomState && <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <StoryInput
                 currentStory={currentStory}
@@ -685,6 +781,7 @@ export default function RoomPage() {
                   results={results}
                   showAverage={roomSettings.showAverage}
                   showMedian={roomSettings.showMedian}
+                  deckType={deckType}
                 />
               )}
             </div>
@@ -747,7 +844,7 @@ export default function RoomPage() {
                 </CardContent>
               </Card>
             </div>
-          </div>
+          </div>}
         </div>
       </main>
     </div>

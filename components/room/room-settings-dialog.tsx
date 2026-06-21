@@ -149,19 +149,6 @@ export function RoomSettingsDialog({
                 />
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="allow-clear-users" className="text-sm font-medium">
-                    Allow others to clear users
-                  </Label>
-                  <p className="text-xs text-muted-foreground">Let any participant remove inactive users</p>
-                </div>
-                <Switch
-                  id="allow-clear-users"
-                  checked={settings.allowOthersToClearUsers}
-                  onCheckedChange={(checked) => updateSetting("allowOthersToClearUsers", checked)}
-                />
-              </div>
             </div>
           </div>
 
@@ -200,19 +187,6 @@ export function RoomSettingsDialog({
                 />
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="show-user-presence" className="text-sm font-medium">
-                    Show user presence
-                  </Label>
-                  <p className="text-xs text-muted-foreground">Display online/offline status indicators</p>
-                </div>
-                <Switch
-                  id="show-user-presence"
-                  checked={settings.showUserPresence}
-                  onCheckedChange={(checked) => updateSetting("showUserPresence", checked)}
-                />
-              </div>
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">

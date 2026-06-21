@@ -31,13 +31,13 @@ export function VotingCard({ value, selected, onSelect, disabled }: VotingCardPr
           aria-pressed={selected}
           aria-disabled={disabled}
           className={cn(
-            "relative flex items-center justify-center rounded-lg border-2 transition-all duration-200",
+            "relative flex items-center justify-center rounded-lg border-2 transition-all duration-300 ease-out",
             "h-24 w-16 text-2xl font-bold",
             "hover:scale-105 active:scale-95",
             "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
             selected
-              ? "border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/25"
+              ? "border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-110 -translate-y-1"
               : "border-border bg-card hover:border-primary/50 hover:bg-accent",
           )}
         >

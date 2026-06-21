@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Clock, Users } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { getRecentRooms } from "@/lib/storage"
+import { getRecentRoomsFiltered } from "@/lib/storage"
 import type { Room } from "@/lib/types"
 import { DECK_OPTIONS } from "@/lib/types"
 
@@ -13,7 +13,7 @@ export function RecentRooms() {
   const [rooms, setRooms] = useState<Room[]>([])
 
   useEffect(() => {
-    setRooms(getRecentRooms())
+    setRooms(getRecentRoomsFiltered())
   }, [])
 
   if (rooms.length === 0) {

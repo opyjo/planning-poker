@@ -1,17 +1,23 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Timer } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface TimerDisplayProps {
   duration: number
   isActive: boolean
+  startedAt?: number
   onComplete?: () => void
 }
 
-export function TimerDisplay({ duration, isActive, onComplete }: TimerDisplayProps) {
+export function TimerDisplay({ duration, isActive, startedAt, onComplete }: TimerDisplayProps) {
   const [timeLeft, setTimeLeft] = useState(duration)
+  const onCompleteRef = useRef(onComplete)
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
 
   useEffect(() => {
     if (!isActive) {
@@ -19,19 +25,27 @@ export function TimerDisplay({ duration, isActive, onComplete }: TimerDisplayPro
       return
     }
 
+    const calculateTimeLeft = () => {
+      if (startedAt) {
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000)
+        return Math.max(0, duration - elapsed)
+      }
+      return duration
+    }
+
+    setTimeLeft(calculateTimeLeft())
+
     const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval)
-          onComplete?.()
-          return 0
-        }
-        return prev - 1
-      })
+      const remaining = calculateTimeLeft()
+      setTimeLeft(remaining)
+      if (remaining <= 0) {
+        clearInterval(interval)
+        onCompleteRef.current?.()
+      }
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [isActive, duration, onComplete])
+  }, [isActive, duration, startedAt])
 
   const percentage = (timeLeft / duration) * 100
   const isLow = percentage < 25

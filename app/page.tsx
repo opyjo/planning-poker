@@ -8,24 +8,10 @@ import { Header } from "@/components/header"
 import { FeatureCard } from "@/components/feature-card"
 import { RecentRooms } from "@/components/recent-rooms"
 import { CreateRoomDialog } from "@/components/create-room-dialog"
-import { addRecentRoom } from "@/lib/storage"
-import type { Room } from "@/lib/types"
 
 export default function HomePage() {
   const router = useRouter()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-
-  const handleCreateRoom = (roomId: string, deckType: string) => {
-    const room: Room = {
-      id: roomId,
-      name: "Planning Poker Session",
-      deckType: deckType,
-      createdAt: new Date().toISOString(),
-    }
-
-    addRecentRoom(room)
-    router.push(`/room/${roomId}`)
-  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -424,7 +410,7 @@ export default function HomePage() {
         </footer>
 
         {/* Create Room Dialog */}
-        <CreateRoomDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} onCreateRoom={handleCreateRoom} />
+        <CreateRoomDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />
       </main>
     </div>
   )

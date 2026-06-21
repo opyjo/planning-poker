@@ -23,7 +23,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json()
       setRoomState(data)
     } catch (error) {
-      console.error("[v0] Failed to poll room state:", error)
+      console.error("Failed to poll room state:", error)
     }
   }, [])
 
@@ -41,9 +41,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         }
         pollingIntervalRef.current = setInterval(() => {
           pollRoomState(roomId)
-        }, 1000) // Poll every 1 second
+        }, 1000)
       } catch (error) {
-        console.error("[v0] Failed to join room:", error)
+        console.error("Failed to join room:", error)
       }
     },
     [pollRoomState],
@@ -66,7 +66,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const sendEvent = async (roomId: string, event: SocketEvent) => {
+  // Memoize sendEvent so it's stable across renders (fetch and setRoomState are stable)
+  const sendEvent = React.useCallback(async (roomId: string, event: SocketEvent) => {
     try {
       const response = await fetch("/api/socket", {
         method: "POST",
@@ -77,11 +78,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       if (data.room) {
         setRoomState(data.room)
       }
-      await pollRoomState(roomId)
+      // POST already returns updated state — no need for an extra poll
     } catch (error) {
-      console.error("[v0] Failed to send event:", error)
+      console.error("Failed to send event:", error)
     }
-  }
+  }, [])
 
   return (
     <SocketProviderContext.Provider value={{ roomState, sendEvent, joinRoom, leaveRoom }}>

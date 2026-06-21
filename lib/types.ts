@@ -64,10 +64,17 @@ export const DECK_OPTIONS: Record<DeckType, { label: string; values: string[] }>
 }
 
 export interface RoomState {
-  participants: Array<{ id: string; name: string; isSpectator: boolean; vote?: string; confidence?: string }>
+  participants: Participant[]
   votesRevealed: boolean
   timerActive: boolean
+  timerDuration?: number
+  timerStartedAt?: number
   currentStory?: string
+  moderatorId?: string
+  settings: RoomSettings
+  deckType: DeckType
+  roomName: string
+  lastActivity: number
 }
 
 export function checkConsensus(votes: string[]): boolean {

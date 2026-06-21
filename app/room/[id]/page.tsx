@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, RotateCcw, Eye, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,12 +27,12 @@ import { useSocket } from "@/components/providers/socket-provider";
 import { useToast } from "@/hooks/use-toast";
 import {
   DECK_OPTIONS,
+  DEFAULT_ROOM_SETTINGS,
   type Participant,
   type VoteResult,
   type DeckType,
   type ConfidenceLevel,
   type RoomSettings,
-  DEFAULT_ROOM_SETTINGS,
 } from "@/lib/types";
 import { getRecentRooms, updateRecentRoom } from "@/lib/storage";
 
@@ -44,6 +44,7 @@ export default function RoomPage() {
   const { toast } = useToast();
   const roomId = params.id as string;
 
+  // Local UI state
   const [showJoinDialog, setShowJoinDialog] = useState(true);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [currentUser, setCurrentUser] = useState<Participant | null>(null);
@@ -51,39 +52,49 @@ export default function RoomPage() {
   const [selectedConfidence, setSelectedConfidence] = useState<
     ConfidenceLevel | undefined
   >();
-  const [moderatorId, setModeratorId] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
   const [isRevealing, setIsRevealing] = useState(false);
   const [isStartingNewRound, setIsStartingNewRound] = useState(false);
-  const [roomName, setRoomName] = useState("");
-  const [deckType, setDeckType] = useState<DeckType>("fibonacci");
-  const [timerDuration, setTimerDuration] = useState<number | undefined>();
-  const [roomSettings, setRoomSettings] = useState<RoomSettings>(
-    DEFAULT_ROOM_SETTINGS
-  );
   const [isMounted, setIsMounted] = useState(false);
+
+  // Refs for stable access in cleanup effects
+  const currentUserRef = useRef<Participant | null>(null);
   const autoJoinAttemptedRef = useRef(false);
+
+  // Keep currentUser ref in sync
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  // localStorage fallback values (shown before server responds)
+  const [storedRoomName, setStoredRoomName] = useState("Loading...");
+  const [storedDeckType, setStoredDeckType] = useState<DeckType>("fibonacci");
 
   useEffect(() => {
     setIsMounted(true);
     const room = getRecentRooms().find((r) => r.id === roomId);
     if (room) {
-      setRoomName(room.name || "Planning Poker Session");
-      setDeckType(room.deckType || "fibonacci");
-      setTimerDuration(room.timerDuration);
-      setRoomSettings(room.settings || DEFAULT_ROOM_SETTINGS);
+      setStoredRoomName(room.name || "Planning Poker Session");
+      setStoredDeckType(room.deckType || "fibonacci");
     } else {
-      setRoomName("Planning Poker Session");
+      setStoredRoomName("Planning Poker Session");
     }
   }, [roomId]);
 
-  const deckValues = DECK_OPTIONS[deckType].values;
-
+  // Derive state from server (source of truth), with localStorage fallbacks
   const participants = roomState?.participants || [];
   const votesRevealed = roomState?.votesRevealed || false;
   const timerActive = roomState?.timerActive || false;
   const currentStory = roomState?.currentStory;
+  const moderatorId = roomState?.moderatorId || null;
+  const roomSettings = roomState?.settings || DEFAULT_ROOM_SETTINGS;
+  const deckType = roomState?.deckType || storedDeckType;
+  const roomName = roomState?.roomName || storedRoomName;
+  const timerDuration = roomState?.timerDuration;
+  const timerStartedAt = roomState?.timerStartedAt;
+
+  const deckValues = DECK_OPTIONS[deckType]?.values || DECK_OPTIONS.fibonacci.values;
 
   const voters = participants.filter((p) => !p.isSpectator);
   const votedCount = voters.filter((p) => p.vote).length;
@@ -91,6 +102,7 @@ export default function RoomPage() {
 
   const isModerator = currentUser?.id === moderatorId;
 
+  // Auto-reveal: bypass permission check since it's triggered by a room setting
   useEffect(() => {
     if (
       allVoted &&
@@ -98,12 +110,19 @@ export default function RoomPage() {
       voters.length > 0 &&
       roomSettings.autoReveal
     ) {
-      const timer = setTimeout(() => {
-        handleRevealVotes();
+      const timer = setTimeout(async () => {
+        try {
+          await sendEvent(roomId, {
+            type: "votes-revealed",
+            payload: { revealed: true },
+          });
+        } catch (error) {
+          console.error("Auto-reveal failed:", error);
+        }
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [allVoted, votesRevealed, voters.length, roomSettings.autoReveal]);
+  }, [allVoted, votesRevealed, voters.length, roomSettings.autoReveal, sendEvent, roomId]);
 
   const handleLeaveRoom = async () => {
     if (currentUser) {
@@ -120,17 +139,24 @@ export default function RoomPage() {
     router.push("/");
   };
 
-  const handleSettingsUpdate = (
+  const handleSettingsUpdate = async (
     newDeckType: DeckType,
     newTimerDuration: number | undefined,
     newRoomName: string,
     newSettings: RoomSettings
   ) => {
-    setDeckType(newDeckType);
-    setTimerDuration(newTimerDuration);
-    setRoomName(newRoomName);
-    setRoomSettings(newSettings);
+    // Send to server so all clients get the update
+    await sendEvent(roomId, {
+      type: "settings-updated",
+      payload: {
+        settings: newSettings,
+        deckType: newDeckType,
+        roomName: newRoomName,
+        timerDuration: newTimerDuration,
+      },
+    });
 
+    // Also update localStorage for the recent rooms list
     updateRecentRoom(roomId, {
       deckType: newDeckType,
       timerDuration: newTimerDuration,
@@ -146,14 +172,12 @@ export default function RoomPage() {
     try {
       setUserName(name);
       const user: Participant = {
-        id: Math.random().toString(36).substring(2, 9),
+        id: crypto.randomUUID(),
         name,
         isSpectator,
       };
       setCurrentUser(user);
-      if (participants.length === 0) {
-        setModeratorId(user.id);
-      }
+
       await sendEvent(roomId, {
         type: "user-joined",
         payload: {
@@ -162,13 +186,31 @@ export default function RoomPage() {
           isSpectator: user.isSpectator,
         },
       });
+
+      // If first person joining, push initial settings from localStorage to server
+      if (participants.length === 0) {
+        const room = getRecentRooms().find((r) => r.id === roomId);
+        if (room) {
+          await sendEvent(roomId, {
+            type: "settings-updated",
+            payload: {
+              settings: room.settings || DEFAULT_ROOM_SETTINGS,
+              deckType: room.deckType || "fibonacci",
+              roomName: room.name || "Planning Poker Session",
+              timerDuration: room.timerDuration,
+            },
+          });
+        }
+      }
+
+      autoJoinAttemptedRef.current = true;
       setShowJoinDialog(false);
       toast({
         title: "Joined room",
         description: `Welcome to ${roomName}!`,
       });
     } catch (error) {
-      console.error("[v0] Failed to join room:", error);
+      console.error("Failed to join room:", error);
       toast({
         title: "Failed to join",
         description: "Could not join the room. Please try again.",
@@ -198,7 +240,7 @@ export default function RoomPage() {
         });
       }
     } catch (error) {
-      console.error("[v0] Failed to cast vote:", error);
+      console.error("Failed to cast vote:", error);
       toast({
         title: "Failed to vote",
         description: "Could not cast your vote. Please try again.",
@@ -229,7 +271,7 @@ export default function RoomPage() {
         description: "All estimates are now visible",
       });
     } catch (error) {
-      console.error("[v0] Failed to reveal votes:", error);
+      console.error("Failed to reveal votes:", error);
       toast({
         title: "Failed to reveal",
         description: "Could not reveal votes. Please try again.",
@@ -268,7 +310,7 @@ export default function RoomPage() {
         description: "Ready for the next estimation",
       });
     } catch (error) {
-      console.error("[v0] Failed to start new round:", error);
+      console.error("Failed to start new round:", error);
       toast({
         title: "Failed to start round",
         description: "Could not start a new round. Please try again.",
@@ -295,7 +337,7 @@ export default function RoomPage() {
         });
       }
     } catch (error) {
-      console.error("[v0] Failed to change name:", error);
+      console.error("Failed to change name:", error);
       toast({
         title: "Failed to update name",
         description: "Could not change your name. Please try again.",
@@ -311,7 +353,7 @@ export default function RoomPage() {
         payload: { story },
       });
     } catch (error) {
-      console.error("[v0] Failed to update story:", error);
+      console.error("Failed to update story:", error);
       toast({
         title: "Failed to update story",
         description: "Could not update the story. Please try again.",
@@ -332,73 +374,77 @@ export default function RoomPage() {
   const canStartNewRound =
     isModerator || roomSettings.allowOthersToDeleteEstimates;
 
+  // Auto-join: reconnect existing user or auto-join as room creator
   useEffect(() => {
-    if (!isMounted || autoJoinAttemptedRef.current) return;
+    if (!isMounted || autoJoinAttemptedRef.current || !roomState || currentUser) return;
+    if (!userName) return;
 
-    const autoJoin = async () => {
-      // Check if user should auto-join (has name but not in participants yet)
-      if (userName && participants.length === 0 && !currentUser) {
-        autoJoinAttemptedRef.current = true;
-        const user: Participant = {
-          id: Math.random().toString(36).substring(2, 9),
-          name: userName,
-          isSpectator: false,
-        };
-        setCurrentUser(user);
-        setModeratorId(user.id);
+    // Check if the user already exists in the room (e.g., page refresh)
+    const existing = roomState.participants.find((p) => p.name === userName);
+    if (existing) {
+      setCurrentUser(existing);
+      setShowJoinDialog(false);
+      autoJoinAttemptedRef.current = true;
+      return;
+    }
+
+    // Auto-join only if this user created the room (in their recent rooms) and room is empty
+    const isRoomCreator = getRecentRooms().some((r) => r.id === roomId);
+    if (roomState.participants.length === 0 && isRoomCreator) {
+      autoJoinAttemptedRef.current = true;
+      const user: Participant = {
+        id: crypto.randomUUID(),
+        name: userName,
+        isSpectator: false,
+      };
+      setCurrentUser(user);
+
+      (async () => {
         try {
           await sendEvent(roomId, {
             type: "user-joined",
-            payload: {
-              id: user.id,
-              name: user.name,
-              isSpectator: user.isSpectator,
-            },
+            payload: { id: user.id, name: user.name, isSpectator: user.isSpectator },
           });
+
+          // Push initial settings from localStorage to server
+          const room = getRecentRooms().find((r) => r.id === roomId);
+          if (room) {
+            await sendEvent(roomId, {
+              type: "settings-updated",
+              payload: {
+                settings: room.settings || DEFAULT_ROOM_SETTINGS,
+                deckType: room.deckType || "fibonacci",
+                roomName: room.name || "Planning Poker Session",
+                timerDuration: room.timerDuration,
+              },
+            });
+          }
+
           setShowJoinDialog(false);
         } catch (error) {
-          console.error("[v0] Failed to auto-join:", error);
+          console.error("Failed to auto-join:", error);
           setCurrentUser(null);
-          setModeratorId(null);
           autoJoinAttemptedRef.current = false;
         }
-      } else if (userName && participants.length > 0 && !currentUser) {
-        const existingParticipant = participants.find(
-          (p) => p.name === userName
-        );
-        if (existingParticipant) {
-          setCurrentUser(existingParticipant);
-          setShowJoinDialog(false);
-          if (participants[0].id === existingParticipant.id) {
-            setModeratorId(existingParticipant.id);
-          }
-          autoJoinAttemptedRef.current = true;
-        }
-      }
-    };
+      })();
+    }
+  }, [isMounted, roomState, currentUser, userName, sendEvent, roomId]);
 
-    autoJoin();
-  }, [
-    userName,
-    participants.length,
-    roomId,
-    isMounted,
-    currentUser,
-    sendEvent,
-  ]);
-
+  // Start polling and handle cleanup on unmount
   useEffect(() => {
     joinRoom(roomId);
 
     return () => {
-      // Only send leave event if user actually joined
-      if (currentUser && autoJoinAttemptedRef.current) {
-        sendEvent(roomId, {
-          type: "user-left",
-          payload: { id: currentUser.id },
-        }).catch((error) => {
-          console.error("[v0] Failed to send leave event:", error);
+      // Use ref to get the latest currentUser value (avoids stale closure)
+      const user = currentUserRef.current;
+      if (user) {
+        // Use sendBeacon with Blob for reliable delivery on page unload
+        const payload = JSON.stringify({
+          roomId,
+          event: { type: "user-left", payload: { id: user.id } },
         });
+        const blob = new Blob([payload], { type: "application/json" });
+        navigator.sendBeacon("/api/socket", blob);
       }
       leaveRoom();
     };
@@ -552,6 +598,7 @@ export default function RoomPage() {
                     <TimerDisplay
                       duration={timerDuration}
                       isActive={timerActive}
+                      startedAt={timerStartedAt}
                       onComplete={handleRevealVotes}
                     />
                   </CardContent>
@@ -662,7 +709,7 @@ export default function RoomPage() {
                   <div className="flex justify-between" role="listitem">
                     <span className="text-muted-foreground">Deck Type</span>
                     <span className="font-medium">
-                      {DECK_OPTIONS[deckType].label}
+                      {DECK_OPTIONS[deckType]?.label || "Fibonacci"}
                     </span>
                   </div>
                   {timerDuration && (

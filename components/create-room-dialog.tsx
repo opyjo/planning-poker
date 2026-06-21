@@ -27,7 +27,7 @@ export function CreateRoomDialog({ open, onOpenChange }: CreateRoomDialogProps) 
   const handleCreateRoom = async () => {
     setIsCreating(true)
     try {
-      const roomId = Math.random().toString(36).substring(2, 9)
+      const roomId = crypto.randomUUID().substring(0, 8)
       const generatedName = roomName.trim() || `Planning Session ${roomId.substring(0, 5)}`
 
       const room: Room = {

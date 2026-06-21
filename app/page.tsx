@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { ArrowRight, Timer, Users, BarChart3, Share2, Zap, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
@@ -10,7 +9,6 @@ import { RecentRooms } from "@/components/recent-rooms"
 import { CreateRoomDialog } from "@/components/create-room-dialog"
 
 export default function HomePage() {
-  const router = useRouter()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, RotateCcw, Eye, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -101,6 +101,17 @@ export default function RoomPage() {
   const allVoted = voters.length > 0 && voters.every((p) => p.vote);
 
   const isModerator = currentUser?.id === moderatorId;
+
+  // Clear local vote selection when a new round starts (syncs across all clients)
+  const prevVotesRevealedRef = useRef(votesRevealed);
+  useEffect(() => {
+    // Detect transition from revealed → unrevealed (i.e., new round started)
+    if (prevVotesRevealedRef.current && !votesRevealed) {
+      setSelectedVote(undefined);
+      setSelectedConfidence(undefined);
+    }
+    prevVotesRevealedRef.current = votesRevealed;
+  }, [votesRevealed]);
 
   // Auto-reveal: bypass permission check since it's triggered by a room setting
   useEffect(() => {
@@ -383,6 +394,11 @@ export default function RoomPage() {
     const existing = roomState.participants.find((p) => p.name === userName);
     if (existing) {
       setCurrentUser(existing);
+      // Restore vote selection from server state
+      if (existing.vote) {
+        setSelectedVote(existing.vote);
+        setSelectedConfidence(existing.confidence);
+      }
       setShowJoinDialog(false);
       autoJoinAttemptedRef.current = true;
       return;
@@ -599,7 +615,13 @@ export default function RoomPage() {
                       duration={timerDuration}
                       isActive={timerActive}
                       startedAt={timerStartedAt}
-                      onComplete={handleRevealVotes}
+                      onComplete={() => {
+                        // Timer expiry bypasses permission check (same as auto-reveal)
+                        sendEvent(roomId, {
+                          type: "votes-revealed",
+                          payload: { revealed: true },
+                        });
+                      }}
                     />
                   </CardContent>
                 </Card>
